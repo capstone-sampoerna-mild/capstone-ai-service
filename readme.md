@@ -2,6 +2,8 @@
 
 ## Run locally
 
+!!MAKE SURE YOUR PYTHON VERSION IS >=3.12.0
+
 Setup Virtual Environment
 
 - `python -m venv venv`
