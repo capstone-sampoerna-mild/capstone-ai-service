@@ -4,7 +4,11 @@
 
 Setup Virtual Environment
 
-- `python3 -m venv venv`
+- `python -m venv venv`
+
+Activate the Virtual Environtment
+
+- `source venv/bin/activate`
 
 Install the required library
 

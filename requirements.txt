@@ -4,3 +4,4 @@ asyncio
 google.generativeai
 pydantic
 python-dotenv
+fastapi-swagger-ui-theme
