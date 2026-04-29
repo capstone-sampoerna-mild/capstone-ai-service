@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 asyncio
-google.generativeai
+google-genai
 pydantic
 python-dotenv
 fastapi-swagger-ui-theme
