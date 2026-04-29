@@ -2,18 +2,22 @@
 
 ## Run locally
 
-!!MAKE SURE YOUR PYTHON VERSION IS >=3.12.0
+This project uses TensorFlow (for `models/job_role_model.keras`), so use **Python 3.11** (recommended) or **Python 3.12**.
 
-Setup Virtual Environment
+### Recommended: pyenv + single venv
+
+1) Install the Python version (one-time):
+
+- `pyenv install 3.11.9`
+
+2) Use repo-local Python version (this repo includes `.python-version`):
+
+- `pyenv local 3.11.9`
+
+3) Create venv and install deps:
 
 - `python -m venv venv`
-
-Activate the Virtual Environtment
-
 - `source venv/bin/activate`
-
-Install the required library
-
 - `pip install -r requirements.txt`
 
 From the repo root:
@@ -23,6 +27,22 @@ From the repo root:
 Alternative (direct module path):
 
 - `uvicorn app.main:app --reload`
+
+## Job role recommendation
+
+Endpoint:
+
+- `POST /job-role/recommend`
+
+Request body:
+
+```json
+{ "name": "Budi", "skillset": ["python", "sql", "ml"] }
+```
+
+Optional env var:
+
+- `JOB_ROLE_LABELS` (comma-separated) to match your training label order, e.g. `Data & AI,Software Engineering,Product & Business`.
 
 
 ## List of Model that can be used (for dummy purposed)

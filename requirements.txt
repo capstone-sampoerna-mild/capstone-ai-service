@@ -5,3 +5,4 @@ google.generativeai
 pydantic
 python-dotenv
 fastapi-swagger-ui-theme
+tensorflow; python_version < "3.14"
