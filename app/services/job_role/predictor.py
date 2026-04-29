@@ -9,8 +9,6 @@ from typing import Iterable
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_PATH = REPO_ROOT / "models" / "job_role_model.keras"
 
-# Default mapping for the model's 3 output classes.
-# If your training label order differs, override with env var JOB_ROLE_LABELS.
 DEFAULT_ROLE_LABELS: list[str] = [
     "Data & AI",
     "Software Engineering",
@@ -43,7 +41,6 @@ def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
 
 def _skills_to_text(skillset: Iterable[str]) -> str:
     skills = _normalize_skillset(skillset)
-    # TextVectorization in the model usually expects natural text.
     return ", ".join(skills).lower().strip() or "(no skills)"
 
 
@@ -64,8 +61,8 @@ def _load_model():
         raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
 
     try:
-        import tensorflow as tf  # type: ignore
-    except Exception as exc:  # pragma: no cover
+        import tensorflow as tf
+    except Exception as exc:
         raise RuntimeError(
             "TensorFlow is required to load models/job_role_model.keras. "
             "Install it in a compatible Python environment (recommended: Python 3.11/3.12)."
@@ -79,21 +76,18 @@ def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
     model = _load_model()
 
     try:
-        import tensorflow as tf  # type: ignore
-    except Exception:  # pragma: no cover
-        # Should be unreachable because _load_model already imported TF.
+        import tensorflow as tf  
+    except Exception:  
         tf = None  # type: ignore
 
     x_text = _skills_to_text(skillset)
 
-    # Most text classification models accept a batch of strings.
     x = tf.constant([x_text])
 
     y = model.predict(x, verbose=0)
     if isinstance(y, (list, tuple)):
         y = y[0]
 
-    # y expected shape: (1, n_classes)
     scores = y[0]
     try:
         scores_list = [float(v) for v in scores]

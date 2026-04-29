@@ -6,3 +6,5 @@ pydantic
 python-dotenv
 fastapi-swagger-ui-theme
 tensorflow; python_version < "3.14"
+joblib
+scikit-learn==1.6.1

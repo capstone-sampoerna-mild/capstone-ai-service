@@ -34,15 +34,22 @@ Endpoint:
 
 - `POST /job-role/recommend`
 
+Assets required:
+
+- `models/job_role_model.keras`
+- `models/label_encoder.pkl`
+
 Request body:
 
 ```json
-{ "name": "Budi", "skillset": ["python", "sql", "ml"] }
+{ "nama": "Budi", "skillset": ["React", "NextJS"] }
 ```
 
-Optional env var:
+Response:
 
-- `JOB_ROLE_LABELS` (comma-separated) to match your training label order, e.g. `Data & AI,Software Engineering,Product & Business`.
+```json
+{ "reply": "hai Budi, pekerjaan yang cocok untukmu adalah <predicted_role>" }
+```
 
 
 ## List of Model that can be used (for dummy purposed)
