@@ -8,12 +8,7 @@ from typing import Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_PATH = REPO_ROOT / "models" / "job_role_model.keras"
-
-DEFAULT_ROLE_LABELS: list[str] = [
-    "Data & AI",
-    "Software Engineering",
-    "Product & Business",
-]
+ENCODER_PATH = REPO_ROOT / "models" / "label_encoder.pkl"
 
 
 @dataclass(frozen=True)
@@ -41,18 +36,7 @@ def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
 
 def _skills_to_text(skillset: Iterable[str]) -> str:
     skills = _normalize_skillset(skillset)
-    return ", ".join(skills).lower().strip() or "(no skills)"
-
-
-def _load_role_labels() -> list[str]:
-    import os
-
-    raw = (os.getenv("JOB_ROLE_LABELS") or "").strip()
-    if not raw:
-        return DEFAULT_ROLE_LABELS
-
-    labels = [part.strip() for part in raw.split(",") if part.strip()]
-    return labels or DEFAULT_ROLE_LABELS
+    return " ".join(skills).lower().strip() or "(no skills)"
 
 
 @lru_cache(maxsize=1)
@@ -71,9 +55,25 @@ def _load_model():
     return tf.keras.models.load_model(MODEL_PATH)
 
 
-def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
-    labels = _load_role_labels()
+@lru_cache(maxsize=1)
+def _load_encoder():
+    if not ENCODER_PATH.exists():
+        raise FileNotFoundError(f"Label encoder file not found at: {ENCODER_PATH}")
+
+    try:
+        import joblib
+    except Exception as exc:
+        raise RuntimeError(
+            "joblib is required to load models/label_encoder.pkl. "
+            "Install it (pip install joblib) in your environment."
+        ) from exc
+
+    return joblib.load(ENCODER_PATH)
+
+
+def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
     model = _load_model()
+    encoder = _load_encoder()
 
     try:
         import tensorflow as tf  
@@ -81,20 +81,29 @@ def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
         tf = None  # type: ignore
 
     x_text = _skills_to_text(skillset)
+    x = tf.constant([x_text], dtype=tf.string)
 
-    x = tf.constant([x_text])
+    y_pred = model.predict(x, verbose=0)
+    if isinstance(y_pred, (list, tuple)):
+        y_pred = y_pred[0]
 
-    y = model.predict(x, verbose=0)
-    if isinstance(y, (list, tuple)):
-        y = y[0]
-
-    scores = y[0]
+    scores = y_pred[0]
     try:
         scores_list = [float(v) for v in scores]
     except TypeError:
         scores_list = [float(v) for v in scores.numpy().tolist()]
 
     best_index, best_score = max(enumerate(scores_list), key=lambda it: it[1])
-    label = labels[best_index] if best_index < len(labels) else f"Class {best_index}"
+    try:
+        label = encoder.inverse_transform([int(best_index)])[0]
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to decode predicted class index via label_encoder.pkl. "
+            "Ensure it is a compatible scikit-learn LabelEncoder."
+        ) from exc
 
-    return JobRolePrediction(label=label, confidence=float(best_score))
+    return JobRolePrediction(label=str(label), confidence=float(best_score))
+
+
+def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
+    return predict_job_role(skillset)

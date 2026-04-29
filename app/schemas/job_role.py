@@ -14,6 +14,5 @@ class JobRoleRecommendRequest(BaseModel):
 class JobRoleRecommendResponse(BaseModel):
     greeting: str
     recommendation: str
-    predicted_field: str
-    recommended_jobs: list[str] = Field(default_factory=list)
+    predicted_role: str
     confidence: float | None = None
