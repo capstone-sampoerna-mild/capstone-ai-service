@@ -16,6 +16,16 @@ def _get_client() -> genai.Client:
         _client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else genai.Client()
     return _client
 
+
+async def gemini_generate_text(prompt: str) -> str:
+    client = _get_client()
+    resp = await client.aio.models.generate_content(
+        model=MODEL_ID,
+        contents=prompt,
+    )
+    text = getattr(resp, "text", None)
+    return (text or "").strip()
+
 async def gemini_stream_chat(prompt: str):
     client = _get_client()
     async for chunk in client.aio.models.generate_content_stream(
