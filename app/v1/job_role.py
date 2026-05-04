@@ -8,7 +8,7 @@ from starlette.concurrency import run_in_threadpool
 from app.schemas.job_role import JobRoleRecommendRequest, JobRoleRecommendResponse
 from app.services.job_role.predictor import predict_job_role
 
-router = APIRouter()
+router = APIRouter(prefix="/job-role", tags=["Job Role Recomendation"])
 logger = logging.getLogger(__name__)
 
 

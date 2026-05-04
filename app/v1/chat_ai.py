@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from app.services.chat.gemini import gemini_stream_chat
 from app.schemas.chat import ChatRequest
 
-router = APIRouter()
+router = APIRouter(prefix="/chat-ai", tags=["Chat AI Dummy Conversation"])
 
 @router.post("/chat-ai/stream")
 async def chat_stream(request : ChatRequest) :

@@ -8,3 +8,7 @@ fastapi-swagger-ui-theme
 tensorflow; python_version < "3.14"
 joblib
 scikit-learn==1.6.1
+PyMuPDF
+langchain-text-splitters
+supabase
+python-multipart
