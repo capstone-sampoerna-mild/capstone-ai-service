@@ -14,14 +14,14 @@ def embed_and_store(chunks: list[str]):
     
     for chunk in chunks:
         result = client.models.embed_content(
-            model="text-embedding-004",
+            model="gemini-embedding-2",
             contents=chunk
         )
         
         vector_data = result.embeddings[0].values
         
         records.append({
-            "contents": chunk,
+            "content": chunk,
             "embedding": vector_data
         })
         
