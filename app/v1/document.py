@@ -5,7 +5,7 @@ from app.services.document.embedder import embed_and_store
 
 router = APIRouter(prefix="/document", tags=["Document Processing"])
 
-@router.post("/upload")
+@router.post("/predict-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Invalid file format. Only PDF files are accepted.")

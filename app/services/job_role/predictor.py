@@ -78,7 +78,7 @@ def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
     try:
         import tensorflow as tf  
     except Exception:  
-        tf = None  # type: ignore
+        tf = None
 
     x_text = _skills_to_text(skillset)
     x = tf.constant([x_text], dtype=tf.string)
