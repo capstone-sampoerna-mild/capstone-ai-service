@@ -4,17 +4,29 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
-
+import json
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_PATH = REPO_ROOT / "models" / "job_role_model.keras"
 ENCODER_PATH = REPO_ROOT / "models" / "label_encoder.pkl"
-
+SKILL_MAP_PATH = REPO_ROOT / "models" / "skill_per_role.json"
 
 @dataclass(frozen=True)
 class JobRolePrediction:
     label: str
     confidence: float | None
+
+
+@dataclass(frozen=True)
+class JobRoleRanking:
+    predictions: list[JobRolePrediction]
+
+    @property
+    def best(self) -> JobRolePrediction:
+        return self.predictions[0]
+
+    def top(self, n: int = 3) -> list[JobRolePrediction]:
+        return self.predictions[:n]
 
 
 def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
@@ -37,6 +49,31 @@ def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
 def _skills_to_text(skillset: Iterable[str]) -> str:
     skills = _normalize_skillset(skillset)
     return " ".join(skills).lower().strip() or "(no skills)"
+
+
+@lru_cache(maxsize=1)
+def _load_skill_map() -> dict[str, dict[str, int]]:
+    if not SKILL_MAP_PATH.exists():
+        raise FileNotFoundError(f"Skill map not found at: {SKILL_MAP_PATH}")
+    with open(SKILL_MAP_PATH) as f:
+        return json.load(f)
+
+def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
+    """Return list of (skill, confidence) yang belum dimiliki user untuk role tersebut."""
+    skill_map = _load_skill_map()
+    role_skills = skill_map.get(role, {})
+    if not role_skills:
+        return []
+
+    user_set = {s.strip().lower() for s in user_skills if s}
+    max_count = max(role_skills.values(), default=1)
+
+    gaps = [
+        (skill, round(count / max_count, 4))
+        for skill, count in role_skills.items()
+        if skill not in user_set
+    ]
+    return sorted(gaps, key=lambda x: x[1], reverse=True)
 
 
 @lru_cache(maxsize=1)
@@ -71,13 +108,14 @@ def _load_encoder():
     return joblib.load(ENCODER_PATH)
 
 
-def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
+def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
+    """Internal: return (labels, scores) sorted by score descending."""
     model = _load_model()
     encoder = _load_encoder()
 
     try:
-        import tensorflow as tf  
-    except Exception:  
+        import tensorflow as tf
+    except Exception:
         tf = None
 
     x_text = _skills_to_text(skillset)
@@ -93,16 +131,33 @@ def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
     except TypeError:
         scores_list = [float(v) for v in scores.numpy().tolist()]
 
-    best_index, best_score = max(enumerate(scores_list), key=lambda it: it[1])
     try:
-        label = encoder.inverse_transform([int(best_index)])[0]
+        labels = encoder.inverse_transform(list(range(len(scores_list)))).tolist()
     except Exception as exc:
         raise RuntimeError(
-            "Failed to decode predicted class index via label_encoder.pkl. "
+            "Failed to decode class labels via label_encoder.pkl. "
             "Ensure it is a compatible scikit-learn LabelEncoder."
         ) from exc
 
-    return JobRolePrediction(label=str(label), confidence=float(best_score))
+    paired = sorted(zip(labels, scores_list), key=lambda it: it[1], reverse=True)
+    labels_sorted, scores_sorted = zip(*paired)
+    return list(labels_sorted), list(scores_sorted)
+
+
+def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
+    """Return only the top-1 prediction (backward compatible)."""
+    labels, scores = _get_scores(skillset)
+    return JobRolePrediction(label=labels[0], confidence=scores[0])
+
+
+def rank_job_roles(skillset: Iterable[str]) -> JobRoleRanking:
+    """Return all roles ranked by confidence, highest first."""
+    labels, scores = _get_scores(skillset)
+    predictions = [
+        JobRolePrediction(label=label, confidence=score)
+        for label, score in zip(labels, scores)
+    ]
+    return JobRoleRanking(predictions=predictions)
 
 
 def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:

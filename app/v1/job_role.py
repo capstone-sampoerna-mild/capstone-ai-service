@@ -1,41 +1,36 @@
-import json
 import logging
-import re
-
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
-from starlette.concurrency import run_in_threadpool
-
-from app.schemas.job_role import JobRoleRecommendRequest, JobRoleRecommendResponse
-from app.services.job_role.predictor import predict_job_role
+from app.schemas.job_role import (
+    JobRoleRecommendRequest,
+    JobRoleRecommendResponse,
+    RankedRole,
+    SkillGap,
+)
+from app.services.job_role.predictor import rank_job_roles, get_skill_gap
 
 router = APIRouter(prefix="/job-role", tags=["Job Role Recomendation"])
 logger = logging.getLogger(__name__)
 
-@router.post("/job-role/recommend", response_model=JobRoleRecommendResponse)
+@router.post("/recommend", response_model=JobRoleRecommendResponse)
 async def recommend_job_role(request: JobRoleRecommendRequest):
     try:
-        prediction = predict_job_role(request.skillset)
+        ranking = rank_job_roles(request.skillset)
     except Exception as exc:
+        logger.exception("Prediction failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    name = request.name.strip() or request.name
-    skills_str = ", ".join([s.strip() for s in request.skillset if str(s).strip()])
-
-    greeting = f"Halo {name}!"
-    if skills_str:
-        recommendation = (
-            f"Berdasarkan skillset kamu ({skills_str}), pekerjaan yang cocok untukmu adalah "
-            f"{prediction.label}."
+    top_roles = []
+    for pred in ranking.top(4):
+        gaps = get_skill_gap(pred.label, request.skillset)
+        top_roles.append(
+            RankedRole(
+                role=pred.label,
+                confidence=pred.confidence,
+                skill_gap=[
+                    SkillGap(skill=skill, confidence=conf)
+                    for skill, conf in gaps[:10] 
+                ],
+            )
         )
-    else:
-        recommendation = (
-            f"Berdasarkan skillset kamu, pekerjaan yang cocok untukmu adalah {prediction.label}."
-        )
 
-    return JobRoleRecommendResponse(
-        greeting=greeting,
-        recommendation=recommendation,
-        predicted_role=prediction.label,
-        confidence=prediction.confidence,
-    )
+    return JobRoleRecommendResponse(top_roles=top_roles)
