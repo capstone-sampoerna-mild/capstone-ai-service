@@ -16,7 +16,6 @@ async def upload_pdf(file: UploadFile = File(...)):
     try:
         file_bytes = await file.read()
 
-        # Extract & embed seperti sebelumnya
         raw_text = extract_text_from_pdf(file_bytes)
         if not raw_text.strip():
             raise HTTPException(
@@ -26,14 +25,12 @@ async def upload_pdf(file: UploadFile = File(...)):
         chunks = chunk_text(raw_text)
         embed_and_store(chunks)
 
-        # Extract skills dari PDF pakai Gemini, lalu split jadi list
         skills_text = extract_skills_from_pdf(file_bytes)
         skillset = [s.strip() for s in skills_text.split() if s.strip()]
 
         if not skillset:
             raise HTTPException(status_code=422, detail="No skills could be extracted from the PDF.")
 
-        # Predict + skill gap (sama persis kayak endpoint /recommend)
         ranking = rank_job_roles(skillset)
 
         top_roles = []
