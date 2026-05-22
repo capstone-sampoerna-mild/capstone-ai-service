@@ -5,6 +5,17 @@ from app.core.config import settings
 supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
+# try:
+#     result = supabase.table("documents").select("*").limit(1).execute()
+
+#     print("Koneksi berhasil")
+#     print(result.data)
+
+# except Exception as e:
+#     print("Koneksi gagal")
+#     print(e)
+
+
 def embed_and_store(chunks: list[str]):
     records = []
     

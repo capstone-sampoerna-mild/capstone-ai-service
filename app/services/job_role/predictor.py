@@ -132,7 +132,7 @@ def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
         scores_list = [float(v) for v in scores.numpy().tolist()]
 
     try:
-        labels = encoder.inverse_transform(list(range(len(scores_list)))).tolist()
+        labels = encoder.classes_.tolist()
     except Exception as exc:
         raise RuntimeError(
             "Failed to decode class labels via label_encoder.pkl. "
