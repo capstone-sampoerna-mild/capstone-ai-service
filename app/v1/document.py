@@ -1,3 +1,4 @@
+import traceback
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.document.extractor import extract_text_from_pdf
 from app.services.document.chunker import chunk_text
@@ -52,4 +53,5 @@ async def upload_pdf(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
+        traceback.print_exc()
+        raise
