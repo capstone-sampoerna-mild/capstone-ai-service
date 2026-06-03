@@ -1,3 +1,3 @@
-skillsgap-ai.my.id {
+ai-service.skillsgap-ai.my.id {
     reverse_proxy api:8000
 }
