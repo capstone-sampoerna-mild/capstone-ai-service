@@ -14,4 +14,5 @@ class JobRoleRecommendRequest(BaseModel):
     skillset: list[str]
 
 class JobRoleRecommendResponse(BaseModel):
+    extracted_skills: list[str]
     top_roles: list[RankedRole]

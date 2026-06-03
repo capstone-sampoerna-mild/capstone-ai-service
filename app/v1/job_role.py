@@ -40,5 +40,6 @@ async def recommend_job_role(request: JobRoleRecommendRequest):
         )
 
     return JobRoleRecommendResponse(
+        extracted_skills=request.skillset,
         top_roles=top_roles,
     )

@@ -29,7 +29,6 @@ async def upload_pdf(file: UploadFile = File(...)):
     try:
         file_bytes = await file.read()
 
-        # 1. Extract raw text → chunk → embed (untuk RAG / search)
         raw_text = extract_text_from_pdf(file_bytes)
         if not raw_text.strip():
             raise HTTPException(
@@ -70,6 +69,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             )
 
         return JobRoleRecommendResponse(
+            extracted_skills=skillset,
             top_roles=top_roles,
         )
 
