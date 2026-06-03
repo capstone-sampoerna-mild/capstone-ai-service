@@ -4,54 +4,77 @@ from app.services.document.extractor import extract_text_from_pdf
 from app.services.document.chunker import chunk_text
 from app.services.document.embedder import embed_and_store
 from app.services.document.extract_skills_from_pdf import extract_skills_from_pdf
-from app.services.job_role.predictor import rank_job_roles, get_skill_gap
-from app.schemas.job_role import JobRoleRecommendResponse, RankedRole, SkillGap
+from app.services.job_role.predictor import (
+    rank_job_roles,
+    get_skill_gap,
+    get_user_skill_scores,
+)
+from app.schemas.job_role import (
+    JobRoleRecommendResponse,
+    RankedRole,
+    SkillItem,
+)
 
 router = APIRouter(prefix="/document", tags=["Document Processing"])
+
 
 @router.post("/predict-pdf", response_model=JobRoleRecommendResponse)
 async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Invalid file format. Only PDF files are accepted.")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file format. Only PDF files are accepted.",
+        )
 
     try:
         file_bytes = await file.read()
 
+        # 1. Extract raw text → chunk → embed (untuk RAG / search)
         raw_text = extract_text_from_pdf(file_bytes)
         if not raw_text.strip():
             raise HTTPException(
                 status_code=400,
-                detail="Text extraction failed. Ensure the PDF contains selectable text and is not a scanned image."
+                detail="Text extraction failed. Ensure the PDF contains selectable text.",
             )
         chunks = chunk_text(raw_text)
         embed_and_store(chunks)
 
         skills_text = extract_skills_from_pdf(file_bytes)
         skillset = [s.strip() for s in skills_text.split() if s.strip()]
-
         if not skillset:
-            raise HTTPException(status_code=422, detail="No skills could be extracted from the PDF.")
+            raise HTTPException(
+                status_code=422,
+                detail="No skills could be extracted from the PDF.",
+            )
 
         ranking = rank_job_roles(skillset)
-
         top_roles = []
+
         for pred in ranking.top(4):
-            gaps = get_skill_gap(pred.label, skillset)
+            user_scores = get_user_skill_scores(pred.label, skillset)
+            gap_scores = get_skill_gap(pred.label, skillset)
+
             top_roles.append(
                 RankedRole(
                     role=pred.label,
                     confidence=pred.confidence,
-                    skill_gap=[
-                        SkillGap(skill=skill, confidence=conf)
-                        for skill, conf in gaps[:10]
+                    user_skill=[
+                        SkillItem(skill=skill, confidence=conf)
+                        for skill, conf in user_scores[:10]
+                    ],
+                    recommended_skill_to_learn=[
+                        SkillItem(skill=skill, confidence=conf)
+                        for skill, conf in gap_scores[:10]
                     ],
                 )
             )
 
-        return JobRoleRecommendResponse(top_roles=top_roles)
+        return JobRoleRecommendResponse(
+            top_roles=top_roles,
+        )
 
     except HTTPException:
         raise
     except Exception as e:
         traceback.print_exc()
-        raise
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

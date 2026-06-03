@@ -75,6 +75,23 @@ def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, floa
     ]
     return sorted(gaps, key=lambda x: x[1], reverse=True)
 
+def get_user_skill_scores(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
+    """Return list of (skill, confidence) dari skill user yang relevan untuk role."""
+    skill_map = _load_skill_map()
+    role_skills = skill_map.get(role, {})
+    if not role_skills:
+        return []
+
+    max_count = max(role_skills.values(), default=1)
+    user_set = {s.strip().lower() for s in user_skills if s}
+
+    matched = [
+        (skill, round(count / max_count, 4))
+        for skill, count in role_skills.items()
+        if skill in user_set
+    ]
+    return sorted(matched, key=lambda x: x[1], reverse=True)
+
 
 @lru_cache(maxsize=1)
 def _load_model():

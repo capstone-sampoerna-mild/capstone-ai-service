@@ -1,13 +1,14 @@
 from pydantic import BaseModel
 
-class SkillGap(BaseModel):
+class SkillItem(BaseModel):
     skill: str
-    confidence: float 
+    confidence: float
 
 class RankedRole(BaseModel):
     role: str
     confidence: float
-    skill_gap: list[SkillGap]  
+    user_skill: list[SkillItem]
+    recommended_skill_to_learn: list[SkillItem]
 
 class JobRoleRecommendRequest(BaseModel):
     skillset: list[str]
