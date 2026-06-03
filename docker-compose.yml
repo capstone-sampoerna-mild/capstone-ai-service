@@ -3,7 +3,23 @@ version: '3.8'
 services:
   api:
     build: .
-    container_name: capstone-backend
-    ports:
-      - "8000:8000"
+    container_name: capstone-ai-service
+    expose:
+      - "8000"
     restart: unless-stopped
+
+  reverse-proxy:
+    image: caddy:2-alpine
+    container_name: caddy-ssl
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
