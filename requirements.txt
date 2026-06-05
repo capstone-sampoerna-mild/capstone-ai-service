@@ -13,3 +13,4 @@ langchain-text-splitters
 supabase
 python-multipart
 pydantic-settings
+langchain-text-splitters

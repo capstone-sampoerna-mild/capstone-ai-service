@@ -1,8 +1,11 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def chunk_text(text: str) -> list[str]:
-    text_splitter = RecursiveCharacterTextSplitter(
+    if not text or not text.strip():
+        return []
+
+    splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
-        chunk_overlap=200
+        chunk_overlap=200,
     )
-    return text_splitter.split_text(text)
+    return splitter.split_text(text)

@@ -1,15 +1,31 @@
+"""
+predictor.py — FIXED
+─────────────────────
+Fix: model BiLSTM_Attention_TFIDF butuh 2 input:
+  1. input_text  : string (skills + title + jd)
+  2. input_tfidf : float32 array (10000-dim TF-IDF vector)
+
+Sebelumnya cuma dikasih 1 input → error "expects 2 input(s), received 1".
+"""
+
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
-import json
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-MODEL_PATH = REPO_ROOT / "models" / "job_role_model.keras"
-ENCODER_PATH = REPO_ROOT / "models" / "label_encoder.pkl"
+import numpy as np
+
+REPO_ROOT      = Path(__file__).resolve().parents[3]
+MODEL_PATH     = REPO_ROOT / "models" / "job_role_model.keras"
+ENCODER_PATH   = REPO_ROOT / "models" / "label_encoder.pkl"
+TFIDF_PATH     = REPO_ROOT / "models" / "tfidf_vectorizer.pkl"
 SKILL_MAP_PATH = REPO_ROOT / "models" / "skill_per_role.json"
+
+
+# ── Dataclasses (tidak berubah) ───────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class JobRolePrediction:
@@ -29,9 +45,57 @@ class JobRoleRanking:
         return self.predictions[:n]
 
 
+# ── Loaders (lazy, cached) ────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def _load_model():
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
+    try:
+        import tensorflow as tf
+    except Exception as exc:
+        raise RuntimeError("TensorFlow is required.") from exc
+    return tf.keras.models.load_model(MODEL_PATH)
+
+
+@lru_cache(maxsize=1)
+def _load_encoder():
+    if not ENCODER_PATH.exists():
+        raise FileNotFoundError(f"Label encoder not found at: {ENCODER_PATH}")
+    try:
+        import joblib
+    except Exception as exc:
+        raise RuntimeError("joblib is required.") from exc
+    return joblib.load(ENCODER_PATH)
+
+
+@lru_cache(maxsize=1)
+def _load_tfidf():
+    """Load TF-IDF vectorizer — WAJIB ada, dipakai untuk input ke-2 model."""
+    if not TFIDF_PATH.exists():
+        raise FileNotFoundError(
+            f"tfidf_vectorizer.pkl tidak ditemukan: {TFIDF_PATH}\n"
+            "Pastikan file hasil training sudah di-copy ke folder models/."
+        )
+    try:
+        import joblib
+    except Exception as exc:
+        raise RuntimeError("joblib is required.") from exc
+    return joblib.load(TFIDF_PATH)
+
+
+@lru_cache(maxsize=1)
+def _load_skill_map() -> dict[str, dict[str, int]]:
+    if not SKILL_MAP_PATH.exists():
+        raise FileNotFoundError(f"Skill map not found at: {SKILL_MAP_PATH}")
+    with open(SKILL_MAP_PATH) as f:
+        return json.load(f)
+
+
+# ── Text helpers (konsisten dengan training notebook) ─────────────────────────
+
 def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
-    normalized: list[str] = []
-    seen: set[str] = set()
+    normalized, seen = [], set()
     for raw in skillset:
         if raw is None:
             continue
@@ -51,94 +115,33 @@ def _skills_to_text(skillset: Iterable[str]) -> str:
     return " ".join(skills).lower().strip() or "(no skills)"
 
 
-@lru_cache(maxsize=1)
-def _load_skill_map() -> dict[str, dict[str, int]]:
-    if not SKILL_MAP_PATH.exists():
-        raise FileNotFoundError(f"Skill map not found at: {SKILL_MAP_PATH}")
-    with open(SKILL_MAP_PATH) as f:
-        return json.load(f)
-
-def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
-    """Return list of (skill, confidence) yang belum dimiliki user untuk role tersebut."""
-    skill_map = _load_skill_map()
-    role_skills = skill_map.get(role, {})
-    if not role_skills:
-        return []
-
-    user_set = {s.strip().lower() for s in user_skills if s}
-    max_count = max(role_skills.values(), default=1)
-
-    gaps = [
-        (skill, round(count / max_count, 4))
-        for skill, count in role_skills.items()
-        if skill not in user_set
-    ]
-    return sorted(gaps, key=lambda x: x[1], reverse=True)
-
-def get_user_skill_scores(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
-    """Return list of (skill, confidence) dari skill user yang relevan untuk role."""
-    skill_map = _load_skill_map()
-    role_skills = skill_map.get(role, {})
-    if not role_skills:
-        return []
-
-    max_count = max(role_skills.values(), default=1)
-    user_set = {s.strip().lower() for s in user_skills if s}
-
-    matched = [
-        (skill, round(count / max_count, 4))
-        for skill, count in role_skills.items()
-        if skill in user_set
-    ]
-    return sorted(matched, key=lambda x: x[1], reverse=True)
-
-
-@lru_cache(maxsize=1)
-def _load_model():
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
-
-    try:
-        import tensorflow as tf
-    except Exception as exc:
-        raise RuntimeError(
-            "TensorFlow is required to load models/job_role_model.keras. "
-            "Install it in a compatible Python environment (recommended: Python 3.11/3.12)."
-        ) from exc
-
-    return tf.keras.models.load_model(MODEL_PATH)
-
-
-@lru_cache(maxsize=1)
-def _load_encoder():
-    if not ENCODER_PATH.exists():
-        raise FileNotFoundError(f"Label encoder file not found at: {ENCODER_PATH}")
-
-    try:
-        import joblib
-    except Exception as exc:
-        raise RuntimeError(
-            "joblib is required to load models/label_encoder.pkl. "
-            "Install it (pip install joblib) in your environment."
-        ) from exc
-
-    return joblib.load(ENCODER_PATH)
-
+# ── Core inference (FIXED) ────────────────────────────────────────────────────
 
 def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
-    """Internal: return (labels, scores) sorted by score descending."""
-    model = _load_model()
-    encoder = _load_encoder()
+    """
+    Return (labels, scores) sorted by score descending.
 
-    try:
-        import tensorflow as tf
-    except Exception:
-        tf = None
+    FIX: sekarang feed 2 input ke model:
+      - inp_seq   : np.array of string shape (1,)
+      - inp_tfidf : TF-IDF dense vector shape (1, 10000)
+    """
+    import tensorflow as tf
+
+    model   = _load_model()
+    encoder = _load_encoder()
+    tfidf   = _load_tfidf()
 
     x_text = _skills_to_text(skillset)
-    x = tf.constant([x_text], dtype=tf.string)
 
-    y_pred = model.predict(x, verbose=0)
+    # Input 1: string tensor
+    inp_seq = np.array([x_text], dtype=object)
+
+    # Input 2: TF-IDF vector (harus sama persis seperti waktu training)
+    inp_tfidf = tfidf.transform([x_text]).toarray().astype(np.float32)
+
+    # Feed keduanya sebagai list, urutan sesuai model.inputs
+    y_pred = model.predict([inp_seq, inp_tfidf], verbose=0)
+
     if isinstance(y_pred, (list, tuple)):
         y_pred = y_pred[0]
 
@@ -148,34 +151,58 @@ def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
     except TypeError:
         scores_list = [float(v) for v in scores.numpy().tolist()]
 
-    try:
-        labels = encoder.classes_.tolist()
-    except Exception as exc:
-        raise RuntimeError(
-            "Failed to decode class labels via label_encoder.pkl. "
-            "Ensure it is a compatible scikit-learn LabelEncoder."
-        ) from exc
-
+    labels = encoder.classes_.tolist()
     paired = sorted(zip(labels, scores_list), key=lambda it: it[1], reverse=True)
     labels_sorted, scores_sorted = zip(*paired)
     return list(labels_sorted), list(scores_sorted)
 
 
+# ── Public API (tidak berubah) ────────────────────────────────────────────────
+
 def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
-    """Return only the top-1 prediction (backward compatible)."""
     labels, scores = _get_scores(skillset)
     return JobRolePrediction(label=labels[0], confidence=scores[0])
 
 
 def rank_job_roles(skillset: Iterable[str]) -> JobRoleRanking:
-    """Return all roles ranked by confidence, highest first."""
     labels, scores = _get_scores(skillset)
-    predictions = [
+    return JobRoleRanking(predictions=[
         JobRolePrediction(label=label, confidence=score)
         for label, score in zip(labels, scores)
-    ]
-    return JobRoleRanking(predictions=predictions)
+    ])
 
 
 def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
     return predict_job_role(skillset)
+
+
+# ── Skill gap & scoring (tidak berubah) ──────────────────────────────────────
+
+def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
+    skill_map  = _load_skill_map()
+    role_skills = skill_map.get(role, {})
+    if not role_skills:
+        return []
+    user_set  = {s.strip().lower() for s in user_skills if s}
+    max_count = max(role_skills.values(), default=1)
+    gaps = [
+        (skill, round(count / max_count, 4))
+        for skill, count in role_skills.items()
+        if skill not in user_set
+    ]
+    return sorted(gaps, key=lambda x: x[1], reverse=True)
+
+
+def get_user_skill_scores(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
+    skill_map   = _load_skill_map()
+    role_skills = skill_map.get(role, {})
+    if not role_skills:
+        return []
+    max_count = max(role_skills.values(), default=1)
+    user_set  = {s.strip().lower() for s in user_skills if s}
+    matched = [
+        (skill, round(count / max_count, 4))
+        for skill, count in role_skills.items()
+        if skill in user_set
+    ]
+    return sorted(matched, key=lambda x: x[1], reverse=True)

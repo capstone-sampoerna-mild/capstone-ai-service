@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
     GEMINI_API_KEY: str
+    MODEL_DIR: str = './models/'
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
