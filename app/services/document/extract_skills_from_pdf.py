@@ -14,7 +14,7 @@ def extract_skills_from_pdf(file_bytes: bytes) -> str:
     prompt = f"Ekstrak HANYA daftar skill teknis (tools, bahasa pemrograman, framework) dari teks CV berikut. Gabungkan dalam satu baris dengan spasi:\n\n{pdf_raw_text}"
     
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         contents=prompt
     )
     return response.text.strip()
