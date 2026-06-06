@@ -22,7 +22,7 @@ REPO_ROOT      = Path(__file__).resolve().parents[3]
 MODEL_PATH     = REPO_ROOT / "models" / "job_role_model.keras"
 ENCODER_PATH   = REPO_ROOT / "models" / "label_encoder.pkl"
 TFIDF_PATH     = REPO_ROOT / "models" / "tfidf_vectorizer.pkl"
-SKILL_MAP_PATH = REPO_ROOT / "models" / "skill_per_role.json"
+SKILL_MAP_PATH = REPO_ROOT / "models" / "skills_freq_per_role.json"
 
 
 # ── Dataclasses (tidak berubah) ───────────────────────────────────────────────
@@ -120,10 +120,6 @@ def _skills_to_text(skillset: Iterable[str]) -> str:
 def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
     """
     Return (labels, scores) sorted by score descending.
-
-    FIX: sekarang feed 2 input ke model:
-      - inp_seq   : np.array of string shape (1,)
-      - inp_tfidf : TF-IDF dense vector shape (1, 10000)
     """
     import tensorflow as tf
 
@@ -133,14 +129,11 @@ def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
 
     x_text = _skills_to_text(skillset)
 
-    # Input 1: string tensor
-    inp_seq = np.array([x_text], dtype=object)
-
-    # Input 2: TF-IDF vector (harus sama persis seperti waktu training)
+    # CUMA BUTUH 1 INPUT SEKARANG: TF-IDF vector
     inp_tfidf = tfidf.transform([x_text]).toarray().astype(np.float32)
 
-    # Feed keduanya sebagai list, urutan sesuai model.inputs
-    y_pred = model.predict([inp_seq, inp_tfidf], verbose=0)
+    # Masukin inp_tfidf aja, HAPUS kurung siku list dan inp_seq
+    y_pred = model.predict(inp_tfidf, verbose=0)
 
     if isinstance(y_pred, (list, tuple)):
         y_pred = y_pred[0]
