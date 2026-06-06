@@ -1,16 +1,15 @@
 """
-predictor.py — FIXED
-─────────────────────
-Fix: model BiLSTM_Attention_TFIDF butuh 2 input:
-    1. input_text  : string (skills + title + jd)
-    2. input_tfidf : float32 array (10000-dim TF-IDF vector)
-
-Sebelumnya cuma dikasih 1 input → error "expects 2 input(s), received 1".
+predictor.py
+─────────────
+Model BiLSTM_TFIDF butuh 2 input:
+    1. input_text  : np.array of string (skills text)
+    2. input_tfidf : float32 array (TF-IDF vector)
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -23,6 +22,7 @@ MODEL_PATH     = REPO_ROOT / "models" / "job_role_model.keras"
 ENCODER_PATH   = REPO_ROOT / "models" / "label_encoder.pkl"
 TFIDF_PATH     = REPO_ROOT / "models" / "tfidf_vectorizer.pkl"
 SKILL_MAP_PATH = REPO_ROOT / "models" / "skills_freq_per_role.json"
+
 
 @dataclass(frozen=True)
 class JobRolePrediction:
@@ -40,6 +40,7 @@ class JobRoleRanking:
 
     def top(self, n: int = 3) -> list[JobRolePrediction]:
         return self.predictions[:n]
+
 
 @lru_cache(maxsize=1)
 def _load_model():
@@ -65,7 +66,6 @@ def _load_encoder():
 
 @lru_cache(maxsize=1)
 def _load_tfidf():
-    """Load TF-IDF vectorizer — WAJIB ada, dipakai untuk input ke-2 model."""
     if not TFIDF_PATH.exists():
         raise FileNotFoundError(
             f"tfidf_vectorizer.pkl tidak ditemukan: {TFIDF_PATH}\n"
@@ -85,61 +85,56 @@ def _load_skill_map() -> dict[str, dict[str, int]]:
     with open(SKILL_MAP_PATH) as f:
         return json.load(f)
 
-def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
-    normalized, seen = [], set()
+
+def _parse_skills(skillset: Iterable[str]) -> str:
+    """
+    Normalize skills list → space-separated token string.
+    Format konsisten dengan parse_skills() di training notebook:
+    lowercase, spasi → underscore, slash → underscore.
+    """
+    tokens = []
+    seen   = set()
     for raw in skillset:
-        if raw is None:
+        if not raw:
             continue
-        item = str(raw).strip()
-        if not item:
-            continue
-        key = item.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        normalized.append(item)
-    return normalized
+        token = str(raw).strip().lower().replace(' ', '_').replace('/', '_')
+        if token and token not in seen:
+            seen.add(token)
+            tokens.append(token)
+    return ' '.join(tokens)
 
-
-def _skills_to_text(skillset: Iterable[str]) -> str:
-    skills = _normalize_skillset(skillset)
-    return " ".join(skills).lower().strip() or "(no skills)"
 
 def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
-    """
-    Return (labels, scores) sorted by score descending.
-    """
-    import tensorflow as tf
-
+    """Return (labels, confidences) sorted by confidence descending."""
     model   = _load_model()
     encoder = _load_encoder()
     tfidf   = _load_tfidf()
 
-    x_text = _skills_to_text(skillset)
+    skills_text = _parse_skills(skillset)
+    if not skills_text:
+        skills_text = ''
 
-    inp_tfidf = tfidf.transform([x_text]).toarray().astype(np.float32)
-    y_pred = model.predict(inp_tfidf, verbose=0)
+    # Input 1: sequence (string array)
+    inp_seq   = np.array([skills_text], dtype=object)
+
+    # Input 2: TF-IDF dense vector
+    inp_tfidf = tfidf.transform([skills_text]).toarray().astype(np.float32)
+
+    # Model expects [inp_seq, inp_tfidf]
+    y_pred = model.predict([inp_seq, inp_tfidf], verbose=0)
 
     if isinstance(y_pred, (list, tuple)):
         y_pred = y_pred[0]
 
-    scores = y_pred[0]
     try:
-        raw_scores_list = [float(v) for v in scores]
+        scores_list = [round(float(v), 4) for v in y_pred[0]]
     except TypeError:
-        raw_scores_list = [float(v) for v in scores.numpy().tolist()]
-
-    T = 0.35
-    
-    sharpened = [pow(max(s, 1e-7), 1/T) for s in raw_scores_list]
-    sum_sharpened = sum(sharpened)
-    
-    scores_list = [round(s / sum_sharpened, 4) for s in sharpened]
+        scores_list = [round(float(v), 4) for v in y_pred[0].numpy().tolist()]
 
     labels = encoder.classes_.tolist()
     paired = sorted(zip(labels, scores_list), key=lambda it: it[1], reverse=True)
     labels_sorted, scores_sorted = zip(*paired)
-    
+
     return list(labels_sorted), list(scores_sorted)
 
 
@@ -161,7 +156,7 @@ def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
 
 
 def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
-    skill_map  = _load_skill_map()
+    skill_map   = _load_skill_map()
     role_skills = skill_map.get(role, {})
     if not role_skills:
         return []
