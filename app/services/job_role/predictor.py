@@ -2,8 +2,8 @@
 predictor.py — FIXED
 ─────────────────────
 Fix: model BiLSTM_Attention_TFIDF butuh 2 input:
-  1. input_text  : string (skills + title + jd)
-  2. input_tfidf : float32 array (10000-dim TF-IDF vector)
+    1. input_text  : string (skills + title + jd)
+    2. input_tfidf : float32 array (10000-dim TF-IDF vector)
 
 Sebelumnya cuma dikasih 1 input → error "expects 2 input(s), received 1".
 """
@@ -24,9 +24,6 @@ ENCODER_PATH   = REPO_ROOT / "models" / "label_encoder.pkl"
 TFIDF_PATH     = REPO_ROOT / "models" / "tfidf_vectorizer.pkl"
 SKILL_MAP_PATH = REPO_ROOT / "models" / "skills_freq_per_role.json"
 
-
-# ── Dataclasses (tidak berubah) ───────────────────────────────────────────────
-
 @dataclass(frozen=True)
 class JobRolePrediction:
     label: str
@@ -43,9 +40,6 @@ class JobRoleRanking:
 
     def top(self, n: int = 3) -> list[JobRolePrediction]:
         return self.predictions[:n]
-
-
-# ── Loaders (lazy, cached) ────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
 def _load_model():
@@ -91,9 +85,6 @@ def _load_skill_map() -> dict[str, dict[str, int]]:
     with open(SKILL_MAP_PATH) as f:
         return json.load(f)
 
-
-# ── Text helpers (konsisten dengan training notebook) ─────────────────────────
-
 def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
     normalized, seen = [], set()
     for raw in skillset:
@@ -113,9 +104,6 @@ def _normalize_skillset(skillset: Iterable[str]) -> list[str]:
 def _skills_to_text(skillset: Iterable[str]) -> str:
     skills = _normalize_skillset(skillset)
     return " ".join(skills).lower().strip() or "(no skills)"
-
-
-# ── Core inference (FIXED) ────────────────────────────────────────────────────
 
 def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
     """
@@ -167,9 +155,7 @@ def rank_job_roles(skillset: Iterable[str]) -> JobRoleRanking:
 
 def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
     return predict_job_role(skillset)
-
-
-# ── Skill gap & scoring (tidak berubah) ──────────────────────────────────────
+    
 
 def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
     skill_map  = _load_skill_map()
