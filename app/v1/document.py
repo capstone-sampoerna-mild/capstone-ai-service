@@ -2,7 +2,7 @@ import traceback
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.document.extractor import extract_text_from_pdf
 from app.services.document.chunker import chunk_text
-from app.services.document.embedder import embed_and_store
+# from app.services.document.embedder import embed_and_store
 from app.services.document.extract_skills_from_pdf import extract_skills_from_pdf
 from app.services.job_role.predictor import (
     rank_job_roles,
@@ -36,7 +36,7 @@ async def upload_pdf(file: UploadFile = File(...)):
                 detail="Text extraction failed. Ensure the PDF contains selectable text.",
             )
         chunks = chunk_text(raw_text)
-        embed_and_store(chunks)
+        # embed_and_store(chunks)
 
         skills_text = extract_skills_from_pdf(file_bytes)
         skillset = [s.strip() for s in skills_text.split() if s.strip()]
