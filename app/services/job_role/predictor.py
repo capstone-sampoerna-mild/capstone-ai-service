@@ -117,10 +117,7 @@ def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
 
     x_text = _skills_to_text(skillset)
 
-    # CUMA BUTUH 1 INPUT SEKARANG: TF-IDF vector
     inp_tfidf = tfidf.transform([x_text]).toarray().astype(np.float32)
-
-    # Masukin inp_tfidf aja, HAPUS kurung siku list dan inp_seq
     y_pred = model.predict(inp_tfidf, verbose=0)
 
     if isinstance(y_pred, (list, tuple)):
@@ -128,17 +125,23 @@ def _get_scores(skillset: Iterable[str]) -> tuple[list[str], list[float]]:
 
     scores = y_pred[0]
     try:
-        scores_list = [float(v) for v in scores]
+        raw_scores_list = [float(v) for v in scores]
     except TypeError:
-        scores_list = [float(v) for v in scores.numpy().tolist()]
+        raw_scores_list = [float(v) for v in scores.numpy().tolist()]
+
+    T = 0.35
+    
+    sharpened = [pow(max(s, 1e-7), 1/T) for s in raw_scores_list]
+    sum_sharpened = sum(sharpened)
+    
+    scores_list = [round(s / sum_sharpened, 4) for s in sharpened]
 
     labels = encoder.classes_.tolist()
     paired = sorted(zip(labels, scores_list), key=lambda it: it[1], reverse=True)
     labels_sorted, scores_sorted = zip(*paired)
+    
     return list(labels_sorted), list(scores_sorted)
 
-
-# ── Public API (tidak berubah) ────────────────────────────────────────────────
 
 def predict_job_role(skillset: Iterable[str]) -> JobRolePrediction:
     labels, scores = _get_scores(skillset)
@@ -155,7 +158,7 @@ def rank_job_roles(skillset: Iterable[str]) -> JobRoleRanking:
 
 def predict_job_field(skillset: Iterable[str]) -> JobRolePrediction:
     return predict_job_role(skillset)
-    
+
 
 def get_skill_gap(role: str, user_skills: Iterable[str]) -> list[tuple[str, float]]:
     skill_map  = _load_skill_map()
