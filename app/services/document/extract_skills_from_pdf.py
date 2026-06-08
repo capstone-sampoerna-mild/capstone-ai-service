@@ -22,16 +22,6 @@ def _get_skills_catalog() -> set[str]:
         return set(json.load(f))
 
 def extract_skills_from_pdf(file_bytes: bytes) -> str:
-    """
-    Ekstrak skill teknis dari CV PDF.
-
-    Alur:
-        1. Baca teks dari PDF
-        2. Normalisasi teks
-        3. Match kata/frasa terhadap skills_catalog.json
-
-    Return: string skill dinormalisasi, dipisah spasi.
-    """
     raw_text = extract_text_from_pdf(file_bytes)
     if not raw_text.strip():
         logger.warning("PDF tidak mengandung teks yang bisa diekstrak.")
